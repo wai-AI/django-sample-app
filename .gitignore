@@ -1,0 +1,27 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+hc/local_settings.py
+secrets.yml
+secrets.yaml
+
+# Terraform downloaded providers and local data
+.terraform/
+
+# Terraform state and saved plans
+*.tfstate
+*.tfstate.*
+*.tfplan
+
+# Local Terraform variable values
+*.tfvars
+*.tfvars.json
+
+# macOS
+.DS_Store
