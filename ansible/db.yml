@@ -1,0 +1,33 @@
+---
+- name: Configure PostgreSQL server
+  hosts: localhost
+  connection: local
+  become: true
+
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+
+  pre_tasks:
+    - name: Validate deployment parameters
+      ansible.builtin.assert:
+        that:
+          - (aws_region | default('') | length) > 0
+          - (postgres_password_parameter | default('') | length) > 0
+        fail_msg: "Provide aws_region and postgres_password_parameter."
+
+    - name: Read database password from Parameter Store
+      ansible.builtin.set_fact:
+        postgres_password: >-
+          {{
+            lookup(
+              'amazon.aws.ssm_parameter',
+              postgres_password_parameter,
+              region=aws_region,
+              decrypt=true
+            )
+          }}
+        cacheable: false
+      no_log: true
+
+  roles:
+    - postgres-setup

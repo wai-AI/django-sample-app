@@ -1,0 +1,27 @@
+---
+- name: Download application code
+  become_user: "{{ app_user }}"
+  ansible.builtin.git:
+    repo: "{{ app_repo }}"
+    dest: "{{ app_code_dir }}"
+    version: "{{ app_version }}"
+    update: true
+  notify: Restart application
+
+- name: Prepare application dependencies
+  ansible.builtin.import_tasks: packages.yml
+
+- name: Configure application environment
+  ansible.builtin.import_tasks: envs.yml
+
+- name: Manage database migrations
+  ansible.builtin.import_tasks: migration.yml
+
+- name: Prepare static assets
+  ansible.builtin.import_tasks: static.yml
+
+- name: Configure application service
+  ansible.builtin.import_tasks: run-server.yml
+
+- name: Configure Nginx
+  ansible.builtin.import_tasks: nginx.yml

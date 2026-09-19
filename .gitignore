@@ -25,3 +25,5 @@ secrets.yaml
 
 # macOS
 .DS_Store
+
+/ansible/inventory.yml

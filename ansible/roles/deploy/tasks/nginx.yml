@@ -1,0 +1,26 @@
+---
+- name: Install application Nginx configuration
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: /etc/nginx/sites-available/healthchecks
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload Nginx
+
+- name: Disable default Nginx site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: Reload Nginx
+
+- name: Enable application Nginx site
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/healthchecks
+    dest: /etc/nginx/sites-enabled/healthchecks
+    state: link
+  notify: Reload Nginx
+
+- name: Validate Nginx configuration
+  ansible.builtin.command: /usr/sbin/nginx -t
+  changed_when: false

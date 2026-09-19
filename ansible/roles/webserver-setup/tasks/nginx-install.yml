@@ -1,0 +1,11 @@
+---
+- name: Install Nginx
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+
+- name: Start Nginx and enable it on boot
+  ansible.builtin.service:
+    name: nginx
+    state: started
+    enabled: true

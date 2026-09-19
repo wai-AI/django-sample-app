@@ -1,0 +1,34 @@
+---
+- name: Deploy Django application
+  hosts: localhost
+  connection: local
+  become: true
+
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+
+  pre_tasks:
+    - name: Validate deployment parameters
+      ansible.builtin.assert:
+        that:
+          - (aws_region | default('') | length) > 0
+          - (db_host | default('') | length) > 0
+          - (app_hostname | default('') | length) > 0
+          - (postgres_password_parameter | default('') | length) > 0
+          - (django_secret_key_parameter | default('') | length) > 0
+
+    - name: Read application secrets
+      ansible.builtin.set_fact:
+        postgres_password: >-
+          {{ lookup('amazon.aws.ssm_parameter',
+                    postgres_password_parameter,
+                    region=aws_region, decrypt=true) }}
+        django_secret_key: >-
+          {{ lookup('amazon.aws.ssm_parameter',
+                    django_secret_key_parameter,
+                    region=aws_region, decrypt=true) }}
+        cacheable: false
+      no_log: true
+
+  roles:
+    - deploy

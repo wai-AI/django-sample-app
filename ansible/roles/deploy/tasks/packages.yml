@@ -1,0 +1,25 @@
+---
+- name: Create application virtual environment
+  become_user: "{{ app_user }}"
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/python3
+      - -m
+      - venv
+      - "{{ app_venv }}"
+    creates: "{{ app_venv }}/bin/python"
+
+- name: Install application requirements
+  become_user: "{{ app_user }}"
+  ansible.builtin.pip:
+    requirements: "{{ app_code_dir }}/requirements.txt"
+    executable: "{{ app_venv }}/bin/pip"
+  notify: Restart application
+
+- name: Install Gunicorn
+  become_user: "{{ app_user }}"
+  ansible.builtin.pip:
+    name: gunicorn
+    executable: "{{ app_venv }}/bin/pip"
+    state: present
+  notify: Restart application

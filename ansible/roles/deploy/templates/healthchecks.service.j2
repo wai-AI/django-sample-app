@@ -1,0 +1,16 @@
+[Unit]
+Description=Healthchecks Django application
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User={{ app_user }}
+Group={{ app_group }}
+WorkingDirectory={{ app_code_dir }}
+EnvironmentFile={{ app_env_file }}
+ExecStart={{ app_venv }}/bin/gunicorn hc.wsgi:application --bind 127.0.0.1:8000 --workers 2 --access-logfile - --error-logfile -
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

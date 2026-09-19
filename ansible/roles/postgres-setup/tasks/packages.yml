@@ -1,0 +1,15 @@
+---
+- name: Install PostgreSQL and Python database driver
+  ansible.builtin.apt:
+    name:
+      - postgresql
+      - python3-psycopg2
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Start PostgreSQL and enable it on boot
+  ansible.builtin.service:
+    name: postgresql
+    state: started
+    enabled: true

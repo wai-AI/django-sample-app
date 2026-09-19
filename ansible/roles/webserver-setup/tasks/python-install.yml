@@ -1,0 +1,17 @@
+---
+- name: Install application prerequisites
+  ansible.builtin.apt:
+    name:
+      - python3
+      - python3-venv
+      - python3-dev
+      - build-essential
+      - libpq-dev
+      - libcurl4-openssl-dev
+      - libssl-dev
+      - git
+      - ca-certificates
+      - acl
+    state: present
+    update_cache: true
+    cache_valid_time: 3600

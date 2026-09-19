@@ -1,0 +1,11 @@
+---
+postgres_db_name: healthchecks
+postgres_user: healthchecks_app
+postgres_port: 5432
+
+postgres_version: "16"
+postgres_cluster: main
+
+postgres_allowed_cidrs:
+  - "10.0.11.0/24"
+  - "10.0.12.0/24"

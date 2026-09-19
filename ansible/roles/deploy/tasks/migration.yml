@@ -1,0 +1,31 @@
+---
+- name: Check for pending database migrations
+  become_user: "{{ app_user }}"
+  ansible.builtin.command:
+    argv:
+      - "{{ app_venv }}/bin/python"
+      - manage.py
+      - migrate
+      - --check
+    chdir: "{{ app_code_dir }}"
+  environment: "{{ django_environment }}"
+  register: migration_check
+  changed_when: false
+  failed_when: migration_check.rc not in [0, 1]
+  when: run_migrations | bool
+  no_log: true
+
+- name: Apply database migrations
+  become_user: "{{ app_user }}"
+  ansible.builtin.command:
+    argv:
+      - "{{ app_venv }}/bin/python"
+      - manage.py
+      - migrate
+      - --noinput
+    chdir: "{{ app_code_dir }}"
+  environment: "{{ django_environment }}"
+  when:
+    - run_migrations | bool
+    - migration_check.rc == 1
+  no_log: true

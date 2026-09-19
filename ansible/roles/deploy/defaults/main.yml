@@ -1,0 +1,26 @@
+---
+app_user: healthchecks
+app_group: healthchecks
+app_home: /opt/healthchecks
+app_code_dir: "{{ app_home }}/app"
+app_repo: https://github.com/wai-AI/django-sample-app.git
+app_version: main
+app_venv: "{{ app_home }}/venv"
+app_env_file: "{{ app_home }}/app.env"
+postgres_db_name: healthchecks
+postgres_user: healthchecks_app
+postgres_port: 5432
+
+run_migrations: false
+
+django_environment:
+  DB: postgres
+  DB_HOST: "{{ db_host }}"
+  DB_PORT: "{{ postgres_port | string }}"
+  DB_NAME: "{{ postgres_db_name }}"
+  DB_USER: "{{ postgres_user }}"
+  DB_PASSWORD: "{{ postgres_password }}"
+  SECRET_KEY: "{{ django_secret_key }}"
+  DEBUG: "False"
+  ALLOWED_HOSTS: "{{ app_hostname }}"
+  SITE_ROOT: "http://{{ app_hostname }}"

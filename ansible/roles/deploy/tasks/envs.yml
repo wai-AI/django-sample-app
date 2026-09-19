@@ -1,0 +1,10 @@
+---
+- name: Write application environment file
+  ansible.builtin.template:
+    src: app.env.j2
+    dest: "{{ app_env_file }}"
+    owner: root
+    group: "{{ app_group }}"
+    mode: "0640"
+  no_log: true
+  notify: Restart application

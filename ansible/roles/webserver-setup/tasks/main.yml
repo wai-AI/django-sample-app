@@ -1,0 +1,9 @@
+---
+- name: Install Python and application prerequisites
+  ansible.builtin.import_tasks: python-install.yml
+
+- name: Create application account and directory
+  ansible.builtin.import_tasks: app-user.yml
+
+- name: Install and start Nginx
+  ansible.builtin.import_tasks: nginx-install.yml

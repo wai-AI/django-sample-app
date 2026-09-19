@@ -1,0 +1,50 @@
+---
+- name: Check that database password is provided
+  ansible.builtin.assert:
+    that:
+      - postgres_password is defined
+      - (postgres_password | default('') | length) > 0
+    fail_msg: "Provide postgres_password before running this role."
+  no_log: true
+
+- name: Create application database user
+  become_user: postgres
+  community.postgresql.postgresql_user:
+    name: "{{ postgres_user }}"
+    password: "{{ postgres_password }}"
+    role_attr_flags: LOGIN,NOSUPERUSER,NOCREATEDB,NOCREATEROLE
+    state: present
+    login_unix_socket: /var/run/postgresql
+    login_port: "{{ postgres_port }}"
+  environment:
+    PGOPTIONS: "-c password_encryption=scram-sha-256"
+  no_log: true
+
+- name: Create application database
+  become_user: postgres
+  community.postgresql.postgresql_db:
+    name: "{{ postgres_db_name }}"
+    owner: "{{ postgres_user }}"
+    encoding: UTF8
+    state: present
+    login_unix_socket: /var/run/postgresql
+    login_port: "{{ postgres_port }}"
+
+- name: Enable PostgreSQL network connections
+  ansible.builtin.lineinfile:
+    path: "/etc/postgresql/{{ postgres_version }}/{{ postgres_cluster }}/postgresql.conf"
+    regexp: '^\s*#?\s*listen_addresses\s*='
+    line: "listen_addresses = '*'"
+  notify: Restart PostgreSQL
+
+- name: Allow application subnets to access the database
+  community.postgresql.postgresql_pg_hba:
+    dest: "/etc/postgresql/{{ postgres_version }}/{{ postgres_cluster }}/pg_hba.conf"
+    contype: host
+    databases: "{{ postgres_db_name }}"
+    users: "{{ postgres_user }}"
+    source: "{{ item }}"
+    method: scram-sha-256
+    state: present
+  loop: "{{ postgres_allowed_cidrs }}"
+  notify: Restart PostgreSQL
