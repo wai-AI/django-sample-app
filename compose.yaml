@@ -1,0 +1,38 @@
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: hc
+      POSTGRES_USER: hc
+      POSTGRES_PASSWORD: "${DB_PASSWORD}"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "hc", "-d", "hc"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    
+  web:
+    image: week6-docker:local
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DB: postgres
+      DB_NAME: hc
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: hc
+      DB_PASSWORD: "${DB_PASSWORD}"
+      SECRET_KEY: "${SECRET_KEY}"
+      DEBUG: "False"
+      ALLOWED_HOSTS: "localhost,127.0.0.1"
+      SITE_ROOT: "http://localhost:8000"
+    depends_on:
+      db: 
+        condition: service_healthy
+
+volumes:
+  pgdata:
+

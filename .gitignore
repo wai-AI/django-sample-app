@@ -1,29 +1,24 @@
-# Python
+.git/
 .venv/
+venv/
 __pycache__/
 *.py[cod]
+.DS_Store
 
-# Local configuration and secrets
 .env
 .env.*
 !.env.example
 hc/local_settings.py
-secrets.yml
-secrets.yaml
 
-# Terraform downloaded providers and local data
-.terraform/
+*.sqlite
+*.sqlite3
+*.db
 
-# Terraform state and saved plans
-*.tfstate
-*.tfstate.*
-*.tfplan
+terraform-old-from-week-4/
+ansible/
+**/.terraform/
+**/*.tfstate*
+**/*.tfvars
+**/*.tfvars.json
 
-# Local Terraform variable values
-*.tfvars
-*.tfvars.json
-
-# macOS
-.DS_Store
-
-/ansible/inventory.yml
+static-collected/

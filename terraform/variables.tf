@@ -1,28 +1,26 @@
-variable "project_name" {
-  description = "The name of the project"
-  type        = string
-  default     = "django-sample-app"
-}
-
 variable "aws_region" {
   description = "The AWS region to deploy resources in"
   type        = string
   default     = "eu-central-1"
 }
 
-variable "vpc_cidr" {
-  description = "The CIDR block for the VPC"
+variable "repository_name" {
+  description = "The name of the repository to create"
   type        = string
-  default     = "10.0.0.0/16"
+  default     = "week6-docker"
 }
 
-variable "environment" {
-  description = "The environment for the deployment (e.g., dev, staging, prod)"
-  type        = string
-}
+variable "availability_zones" {
+  description = "The availability zones to deploy resources in; keep their order stable because subnets use count indices"
+  type        = list(string)
+  default     = ["eu-central-1a", "eu-central-1b"]
 
-variable "instance_type" {
-  description = "EC2 instance type for the environment"
-  type        = string
-  default     = "t3.micro"
+  validation {
+    condition = (
+      length(var.availability_zones) >= 2 &&
+      length(var.availability_zones) <= 10 &&
+      length(distinct(var.availability_zones)) == length(var.availability_zones)
+    )
+    error_message = "Choose 2 to 10 distinct AZs. The limit prevents public and private CIDR ranges from overlapping."
+  }
 }

@@ -1,70 +1,43 @@
-#############################################################################
-# Infrastructure outputs
-#############################################################################
+output "ecr_repository_url" {
+  value       = aws_ecr_repository.app.repository_url
+  description = "The URL of the ECR repository"
+}
 
 output "app_url" {
-  description = "Application URL"
-  value       = "http://${aws_lb.app.dns_name}"
+  value       = "http://${aws_alb.app.dns_name}"
+  description = "The URL of the application"
 }
 
-output "app_instances" {
-  description = "Application instance IDs and private IP addresses"
-
-  value = {
-    for index, instance in aws_instance.app :
-    "app-${index + 1}" => {
-      id         = instance.id
-      private_ip = instance.private_ip
-    }
-  }
+output "ecs_cluster_name" {
+  value       = aws_ecs_cluster.app.name
+  description = "The name of the ECS cluster"
 }
 
-output "db_instance" {
-  description = "Database instance ID and private IP address"
-
-  value = {
-    id         = aws_instance.db.id
-    private_ip = aws_instance.db.private_ip
-  }
+output "task_definition_arn" {
+  value       = aws_ecs_task_definition.app.arn
+  description = "The ARN of the ECS task definition"
 }
 
-#############################################################################
-# Generated Ansible inventory
-#############################################################################
+output "public_subnet_ids" {
+  value       = aws_subnet.public[*].id
+  description = "The IDs of the public subnets"
+}
 
-resource "local_file" "ansible_inventory" {
-  filename        = "${path.module}/../ansible/inventory.yml"
-  file_permission = "0644"
+output "ecs_security_group_id" {
+  value       = aws_security_group.ecs.id
+  description = "The ID of the ECS security group"
+}
 
-  content = yamlencode({
-    all = {
-      vars = {
-        deployment_environment = var.environment
-        aws_region             = var.aws_region
-        db_host                = aws_instance.db.private_ip
-        app_hostname           = aws_lb.app.dns_name
-      }
+output "ecs_service_name" {
+  value = aws_ecs_service.app.name
+}
 
-      children = {
-        webservers = {
-          hosts = {
-            for index, instance in aws_instance.app :
-            "app-${index + 1}" => {
-              ansible_host = instance.private_ip
-              instance_id  = instance.id
-            }
-          }
-        }
+output "target_group_arn" {
+  value       = aws_lb_target_group.app.arn
+  description = "The ARN of the ECS target group"
+}
 
-        db = {
-          hosts = {
-            "db-1" = {
-              ansible_host = aws_instance.db.private_ip
-              instance_id  = aws_instance.db.id
-            }
-          }
-        }
-      }
-    }
-  })
+output "log_group_name" {
+  value       = aws_cloudwatch_log_group.app.name
+  description = "The name of the CloudWatch log group"
 }

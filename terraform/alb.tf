@@ -1,30 +1,22 @@
-#############################################################################
-# Application Load Balancer
-#############################################################################
-
-resource "aws_lb" "app" {
-  name               = "${var.project_name}-${var.environment}-alb"
+resource "aws_alb" "app" {
+  name               = "week6-alb"
   internal           = false
   load_balancer_type = "application"
+  security_groups    = [aws_security_group.alb.id]
+  subnets            = aws_subnet.public[*].id
 
-  security_groups = [aws_security_group.alb.id]
-  subnets         = module.vpc.public_subnets
+  depends_on = [aws_route.public_internet, aws_route_table_association.public]
 }
 
-#############################################################################
-# Target group
-#############################################################################
-
 resource "aws_lb_target_group" "app" {
-  name        = "${var.project_name}-${var.environment}-tg"
-  port        = 80
+  name        = "week6-web"
+  port        = 8000
   protocol    = "HTTP"
-  target_type = "instance"
+  target_type = "ip"
   vpc_id      = module.vpc.vpc_id
 
   health_check {
-    enabled             = true
-    path = "/api/v3/status/"
+    path                = "/static/img/favicon.svg"
     port                = "traffic-port"
     protocol            = "HTTP"
     matcher             = "200"
@@ -35,20 +27,8 @@ resource "aws_lb_target_group" "app" {
   }
 }
 
-#############################################################################
-# Target attachments
-#############################################################################
-
-resource "aws_lb_target_group_attachment" "app" {
-  count = length(aws_instance.app)
-
-  target_group_arn = aws_lb_target_group.app.arn
-  target_id        = aws_instance.app[count.index].id
-  port             = 80
-}
-
 resource "aws_lb_listener" "http" {
-  load_balancer_arn = aws_lb.app.arn
+  load_balancer_arn = aws_alb.app.arn
   port              = 80
   protocol          = "HTTP"
 
