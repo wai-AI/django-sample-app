@@ -15,7 +15,9 @@ services:
 
   web:
     image: week6-docker:local
-    build: .
+    build:
+      context: .
+      dockerfile: terraform-aws-ecs-fargate/Dockerfile.
     ports:
       - "8000:8000"
     environment:

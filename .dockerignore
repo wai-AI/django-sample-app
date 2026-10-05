@@ -1,5 +1,5 @@
 .git/
-terraform/
+terraform-aws-ecs-fargate/
 terraform-old-from-week-4/
 ansible/
 .env
