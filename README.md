@@ -109,13 +109,5 @@ curl -sS -L --max-redirs 5 -o /dev/null \
   http://localhost:8000/
 ```
 
-Expected: `HTTP 200; URL http://localhost:8000/accounts/login/`. Stop the container with `Ctrl+C`; `--rm` removes it and its temporary database.
+Expected: `HTTP 200; URL http://localhost:8000/accounts/login/.
 
-Runtime checks preceded the final benchmark rebuild. A live PostgreSQL connection, email delivery, external integrations, browser asset rendering, and documentation search queries were not tested.
-
-## Guiding questions
-
-- **Reducing size:** use a suitable minimal runtime, multi-stage builds, necessary dependencies only, `.dockerignore`, and cleanup in the instruction that creates temporary files. Fewer layers alone do not guarantee a smaller image.
-- **Improving build time:** copy dependency files before source code. Layer caching skips unchanged commands; package cache mounts reuse downloads when installation must execute again. [Docker cache documentation](https://docs.docker.com/build/cache/optimize/).
-- **Preserving functionality:** inspect dependencies before removing them and validate imports, startup, and HTTP responses. Retain required libraries, migrations, templates, and generated assets.
-- **Other considerations:** non-root execution, runtime secrets, architecture compatibility, security updates, and reproducible measurements. Pinning base image digests and locking transitive dependencies would improve reproducibility; these were not implemented here. [Docker build guidance](https://docs.docker.com/build/building/best-practices/).
