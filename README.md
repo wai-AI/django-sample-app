@@ -16,7 +16,7 @@ Three changes were made:
 
 Updated builder instructions:
 
-```dockerfile
+```
 # syntax=docker/dockerfile:1
 RUN python -m venv --without-pip /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
@@ -28,7 +28,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 Updated runtime package installation:
 
-```dockerfile
+```
 RUN apt-get update && \
     apt-get install -y --no-install-recommends libpq5 && \
     rm -rf /var/lib/apt/lists/*
@@ -52,7 +52,8 @@ Pip cache reuse was tested separately by changing `-r` to the equivalent `--requ
 
 ### Repeat the final measurements
 
-```time docker buildx build \
+```
+time docker buildx build \
   --platform linux/arm64 --load --progress=plain --no-cache \
   -f terraform-aws-ecs-fargate/Dockerfile \
   -t django:optimized .
@@ -60,13 +61,15 @@ Pip cache reuse was tested separately by changing `-r` to the equivalent `--requ
 
 Immediately repeat with the same inputs:
 
-```time docker buildx build \
+```
+time docker buildx build \
   --platform linux/arm64 --load --progress=plain \
   -f terraform-aws-ecs-fargate/Dockerfile \
   -t django:optimized .
 ```
 
-```docker image inspect django:baseline django:optimized \
+```
+docker image inspect django:baseline django:optimized \
   --format '{{index .RepoTags 0}}: {{.Size}} bytes'
 ```
 
@@ -85,7 +88,8 @@ Recorded checks:
 
 Use a temporary SQLite database in `/tmp`, writable by the image's default non-root user:
 
-```docker run --rm --name django-image-test \
+```
+docker run --rm --name django-image-test \
   -p 127.0.0.1:8000:8000 \
   -e DB=sqlite \
   -e DB_NAME=/tmp/hc.sqlite \
@@ -99,7 +103,8 @@ Use a temporary SQLite database in `/tmp`, writable by the image's default non-r
 
 The secret is for this disposable local check only. Once Gunicorn is listening, run in another terminal:
 
-```curl -sS -L --max-redirs 5 -o /dev/null \
+```
+curl -sS -L --max-redirs 5 -o /dev/null \
   -w 'HTTP %{http_code}; URL %{url_effective}\n' \
   http://localhost:8000/
 ```
