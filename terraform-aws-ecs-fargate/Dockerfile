@@ -1,14 +1,18 @@
+# syntax=docker/dockerfile:1
+
 FROM python:3.12 AS builder
 WORKDIR /app
-RUN python -m venv /opt/venv
+RUN python -m venv --without-pip /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 COPY requirements.txt /app
-RUN pip install -r requirements.txt --no-cache-dir
+RUN --mount=type=cache,target=/root/.cache/pip \
+    /usr/local/bin/python -m pip --python /opt/venv \
+    install --requirement requirements.txt
 
 FROM python:3.12-slim AS runtime
 WORKDIR /app
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends libcurl4t64 libpq5 && \
+    apt-get install -y --no-install-recommends libpq5 && \
     rm -rf /var/lib/apt/lists/*
 COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
