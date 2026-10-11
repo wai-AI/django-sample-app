@@ -14,7 +14,7 @@ services:
       - pgdata:/var/lib/postgresql/data
 
   web:
-    image: week6-docker:local
+    image: secure-docker:1.0
     build:
       context: .
       dockerfile: terraform-aws-ecs-fargate/Dockerfile
@@ -28,9 +28,16 @@ services:
       DB_USER: hc
       DB_PASSWORD: "${DB_PASSWORD}"
       SECRET_KEY: "${SECRET_KEY}"
-      DEBUG: "False"
+      DEBUG: "True"
       ALLOWED_HOSTS: "localhost,127.0.0.1"
       SITE_ROOT: "http://localhost:8000"
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             exec python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - ./hc:/app/hc
+      - ./templates:/app/templates
+      - ./static:/app/static
     depends_on:
       db:
         condition: service_healthy

@@ -111,3 +111,47 @@ curl -sS -L --max-redirs 5 -o /dev/null \
 
 Expected: `HTTP 200; URL http://localhost:8000/accounts/login/.
 
+## Local Development with Docker Compose
+
+Docker Compose starts the Django application and PostgreSQL for local development.
+
+The docker-compose.yml file defines two services: db, which uses the postgres:17 image, and web, which uses the secure-docker:1.0 image.
+
+### Requirements
+
+- Docker with Compose v2
+- A local `.env` file containing `DB_PASSWORD` and `SECRET_KEY`
+
+### Start the application
+
+```
+docker compose up --build -d
+docker compose ps
+```
+
+The web service applies database migrations at startup, then runs Django at http://localhost:8000. It connects to PostgreSQL at db:5432.
+
+The hc/, templates/, and static/ directories are mounted into the container so code and template changes are available during development.
+
+##Useful commands
+
+```
+docker compose config --quiet
+docker compose up --build -d
+docker compose ps
+docker compose logs --tail=80 db web
+docker compose exec web python manage.py shell -c \
+  'from django.db import connection; connection.ensure_connection(); print(connection.vendor)'
+```
+
+
+## What we configured
+
+- **`db`** runs PostgreSQL 17. Django connects to it at `db:5432` using the Compose service name.
+- **The health check and `depends_on`** make Django wait until PostgreSQL is ready.
+- **`pgdata`** stores PostgreSQL data between container restarts.
+- **`web`** builds from your Dockerfile and publishes port `8000` for local access.
+- **The startup command** applies migrations before launching Django’s development server.
+- **The bind mounts** expose your local `hc/`, `templates/`, and `static/` files inside the container. Django’s development server watches for code changes.
+- **`DEBUG: "True"`** enables useful error pages and static file serving during local development. Your `settings.py` expects the value to be exactly `"True"` or `"False"`.
+
