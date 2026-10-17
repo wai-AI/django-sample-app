@@ -24,3 +24,6 @@ README.md
 CONTRIBUTING.md
 SECURITY.md
 stuff/
+infra/
+k8s_django_deployment_task/
+docker-compose.yaml

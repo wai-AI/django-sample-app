@@ -1,6 +1,0 @@
----
-- name: Install PostgreSQL packages
-  ansible.builtin.import_tasks: packages.yml
-
-- name: Configure PostgreSQL
-  ansible.builtin.import_tasks: configure-db.yml

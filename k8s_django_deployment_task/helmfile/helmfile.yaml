@@ -1,0 +1,36 @@
+releases:
+  - name: django
+    namespace: django
+    createNamespace: true
+    chart: ../helm_chart
+    secrets:
+      - secrets.yaml
+    needs:
+      - kube-system/aws-load-balancer-controller
+      - cert-manager/cert-manager
+  - name: aws-load-balancer-controller
+    namespace: kube-system
+    chart: eks/aws-load-balancer-controller
+    version: "3.6.0"
+    wait: true
+    values:
+      - clusterName: django-eks
+        region: us-east-1
+        vpcId: vpc-060a370825728994f
+        serviceAccount:
+          create: false
+          name: aws-load-balancer-controller
+
+  - name: cert-manager
+    namespace: cert-manager
+    createNamespace: true
+    chart: oci://quay.io/jetstack/charts/cert-manager
+    version: "v1.21.2"
+    wait: true
+    values:
+      - crds:
+          enabled: true
+
+repositories:
+  - name: eks
+    url: https://aws.github.io/eks-charts

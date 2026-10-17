@@ -1,4 +1,0 @@
----
-app_user: healthchecks
-app_group: healthchecks
-app_home: /opt/healthchecks

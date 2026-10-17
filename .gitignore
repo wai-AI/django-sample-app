@@ -15,7 +15,15 @@ hc/local_settings.py
 *.db
 
 terraform-old-from-week-4/
-ansible/
+# Materials from previous tasks
+/ansible/
+/terraform-aws-ecs-fargate/
+/stuff/
+/docker-compose.yaml
+/requirements-dev.txt
+/mypy.ini
+/CONTRIBUTING.md
+/SECURITY.md
 **/.terraform/
 **/*.tfstate*
 **/*.tfvars

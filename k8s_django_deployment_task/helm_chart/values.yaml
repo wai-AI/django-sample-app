@@ -1,0 +1,52 @@
+replicaCount: 2
+
+image:
+  repository: "022784798189.dkr.ecr.us-east-1.amazonaws.com/secure-image-docker"
+  pullPolicy: IfNotPresent
+  tag: "1.0"
+
+containerPort: 8080
+
+command:
+  - gunicorn
+
+args:
+  - hc.wsgi:application
+  - --bind
+  - "0.0.0.0:8080"
+
+service:
+  type: ClusterIP
+  port: 8080
+
+config:
+  DEBUG: "False"
+
+  DB: "postgres"
+  DB_HOST: "django-postgres.cwjy8gi8ua39.us-east-1.rds.amazonaws.com"
+  DB_PORT: "5432"
+  DB_NAME: "hc"
+  DB_USER: "django_app"
+  DB_SSLMODE: "require"
+
+  SITE_ROOT: "https://django.pavlo-k8s.ddnsfree.com"
+  SECURE_PROXY_SSL_HEADER: "HTTP_X_FORWARDED_PROTO,https"
+  ALLOWED_HOSTS: "localhost,127.0.0.1,django.pavlo-k8s.ddnsfree.com,k8s-django-django-d0a24278e4-938562161.us-east-1.elb.amazonaws.com"
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 80
+
+ingress:
+  host: django.pavlo-k8s.ddnsfree.com
+  certificateArn: arn:aws:acm:us-east-1:022784798189:certificate/00bb6e50-f98b-44d7-b14c-d684b32be465

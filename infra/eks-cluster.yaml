@@ -23,7 +23,7 @@ vpc:
 
 managedNodeGroups:
   - name: django-arm
-    instanceType: t4g.medium
+    instanceType: t4g.small
     amiFamily: AmazonLinux2023
     desiredCapacity: 2
     minSize: 2
