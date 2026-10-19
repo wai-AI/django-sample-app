@@ -1,0 +1,27 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: django-static-init
+  namespace: django
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: copy-static
+          image: 022784798189.dkr.ecr.us-east-1.amazonaws.com/secure-image-docker:1.0
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              cp -r /app/static-collected/. /mnt/static/
+              test -f /mnt/static/admin/css/base.css
+              echo "Static files copied to EFS"
+          volumeMounts:
+            - name: static
+              mountPath: /mnt/static
+      volumes:
+        - name: static
+          persistentVolumeClaim:
+            claimName: django-static

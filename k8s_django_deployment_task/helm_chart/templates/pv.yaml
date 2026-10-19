@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ .Release.Name }}-static
+spec:
+  capacity:
+    storage: {{ .Values.persistence.size | quote }}
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: {{ .Release.Name }}-efs
+  mountOptions:
+    - tls
+  csi:
+    driver: efs.csi.aws.com
+    volumeHandle: "{{ .Values.persistence.fileSystemId }}::{{ .Values.persistence.accessPointId }}"

@@ -50,3 +50,8 @@ autoscaling:
 ingress:
   host: django.pavlo-k8s.ddnsfree.com
   certificateArn: arn:aws:acm:us-east-1:022784798189:certificate/00bb6e50-f98b-44d7-b14c-d684b32be465
+
+persistence:
+  fileSystemId: fs-0096f073e8561310d
+  accessPointId: fsap-0962e9424e2013630
+  size: "1Gi"
