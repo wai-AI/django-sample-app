@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: security-tests
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: network-check
+  namespace: security-tests
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: network-check
+  template:
+    metadata:
+      labels:
+        app: network-check
+        access: allowed
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: probe
+          image: 022784798189.dkr.ecr.us-east-1.amazonaws.com/secure-image-docker:1.0
+          command: ["python", "-m", "http.server", "8080", "--directory", "/tmp"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi

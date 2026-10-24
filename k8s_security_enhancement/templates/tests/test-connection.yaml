@@ -1,0 +1,52 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "django-security.fullname" . }}-connection-test
+  annotations:
+    helm.sh/hook: test
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 90
+  template:
+    metadata:
+      labels:
+        security-test: {{ .Release.Name }}-connection
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ .Release.Name }}
+      automountServiceAccountToken: false
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: connection-test
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy | quote }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          command: ["python", "-B", "-c"]
+          args:
+            - |
+              import time
+              from urllib.request import urlopen
+
+              url = "http://{{ .Release.Name }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }}/accounts/login/"
+
+              for attempt in range(15):
+                  try:
+                      with urlopen(url, timeout=3) as response:
+                          assert response.status == 200, response.status
+                          print("PASS: Django service returned HTTP 200")
+                      break
+                  except OSError as error:
+                      print(f"Attempt {attempt + 1}: {error}", flush=True)
+                      time.sleep(2)
+              else:
+                  raise SystemExit("FAIL: Django service is unreachable")

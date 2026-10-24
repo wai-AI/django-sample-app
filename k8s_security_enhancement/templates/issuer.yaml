@@ -1,0 +1,33 @@
+{{- if .Values.ingress.enabled }}
+
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ .Release.Name }}-letsencrypt
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: {{ .Release.Name }}-letsencrypt-account
+    solvers:
+      - http01:
+          ingress:
+            name: {{ .Release.Name }}
+            serviceType: ClusterIP
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ .Release.Name }}-tls
+spec:
+  secretName: {{ .Release.Name }}-tls
+  dnsNames:
+    - {{ .Values.ingress.host | quote }}
+  issuerRef:
+    name: {{ .Release.Name }}-letsencrypt
+    kind: Issuer
+  privateKey:
+    algorithm: RSA
+    size: 2048
+
+{{- end }}

@@ -30,3 +30,27 @@ terraform-old-from-week-4/
 **/*.tfvars.json
 
 static-collected/
+
+# Editors and temporary files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.log
+
+# Python test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Decrypted secret files and local credentials
+*.dec
+*.dec.*
+/.aws/
+/.kube/
+/.ssh/
+/age/
+/django-eks.txt
+/keys.txt
+*.agekey

@@ -1,0 +1,3 @@
+creation_rules:
+   - path_regex: '^django_secret\.yaml$'
+     age: age1607s9lq2rz3q8arspr4w3zeu8ewzmgp6x4qrw3qqsc8g7gufz3xsx6e8hr

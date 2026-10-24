@@ -1,0 +1,88 @@
+replicaCount: 2
+
+image:
+  repository: "022784798189.dkr.ecr.us-east-1.amazonaws.com/secure-image-docker"
+  pullPolicy: IfNotPresent
+  tag: "1.0"
+
+containerPort: 8080
+
+command:
+  - gunicorn
+
+args:
+  - hc.wsgi:application
+  - --bind
+  - "0.0.0.0:8080"
+
+service:
+  type: ClusterIP
+  port: 8080
+
+config: {}
+
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 80
+
+ingress:
+  host: django.pavlo-k8s.ddnsfree.com
+  certificateArn: arn:aws:acm:us-east-1:022784798189:certificate/00bb6e50-f98b-44d7-b14c-d684b32be465
+  enabled: true
+
+persistence:
+  fileSystemId: fs-0096f073e8561310d
+  accessPointId: fsap-0962e9424e2013630
+  size: "1Gi"
+  enabled: true
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  privileged: false
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+networkPolicy:
+  enabled: true
+  ingress: []
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+bundledCharts:
+  certManager:
+    enabled: false
+  ingressNginx:
+    enabled: false
+  metricsServer:
+    enabled: false

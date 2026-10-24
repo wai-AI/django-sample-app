@@ -1,0 +1,12 @@
+releases:
+  - name: django
+    namespace: django
+    kubeContext: django-eks
+    createNamespace: false
+    chart: ./k8s_security_enhancement
+    wait: true
+    timeout: 600
+    values:
+      - ./infra/eks-values.yaml
+    secrets:
+      - ./helm_secrets/django_secret.yaml

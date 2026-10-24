@@ -1,0 +1,64 @@
+replicaCount: 1
+
+image:
+  repository: "022784798189.dkr.ecr.us-east-1.amazonaws.com/secure-image-docker"
+  tag: "1.0"
+  pullPolicy: IfNotPresent
+
+ingress:
+  enabled: false
+
+persistence:
+  enabled: false
+
+autoscaling:
+  enabled: false
+
+config:
+  DEBUG: "False"
+  DB: "postgres"
+  DB_HOST: "django-postgres.cwjy8gi8ua39.us-east-1.rds.amazonaws.com"
+  DB_PORT: "5432"
+  DB_NAME: "hc"
+  DB_USER: "django_app"
+  DB_SSLMODE: "require"
+  SITE_ROOT: "http://localhost:8080"
+  ALLOWED_HOSTS: "localhost,127.0.0.1,django,django.django.svc,django.django.svc.cluster.local"
+
+networkPolicy:
+  enabled: true
+
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: security-tests
+          podSelector:
+            matchLabels:
+              access: allowed
+      ports:
+        - protocol: TCP
+          port: 8080
+
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+    - to:
+        - ipBlock:
+            cidr: 10.20.64.0/19
+        - ipBlock:
+            cidr: 10.20.96.0/19
+      ports:
+        - protocol: TCP
+          port: 5432

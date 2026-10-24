@@ -20,6 +20,8 @@ vpc:
   clusterEndpoints:
     publicAccess: true
     privateAccess: true
+  publicAccessCIDRs:
+    - 194.28.100.53/32
 
 managedNodeGroups:
   - name: django-arm
@@ -34,3 +36,17 @@ managedNodeGroups:
     volumeEncrypted: true
     ssh:
       allow: false
+
+cloudWatch:
+  clusterLogging:
+    enableTypes:
+      - api
+      - audit
+      - authenticator
+    logRetentionInDays: 7
+
+addons:
+  - name: vpc-cni
+    version: latest
+    configurationValues: |-
+      enableNetworkPolicy: "true"

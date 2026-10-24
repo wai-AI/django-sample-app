@@ -1,0 +1,13 @@
+config:
+ DEBUG: "False"
+
+ DB: "postgres"
+ DB_HOST: "django-postgres.cwjy8gi8ua39.us-east-1.rds.amazonaws.com"
+ DB_PORT: "5432"
+ DB_NAME: "hc"
+ DB_USER: "django_app"
+ DB_SSLMODE: "require"
+
+ SITE_ROOT: "https://django.pavlo-k8s.ddnsfree.com"
+ SECURE_PROXY_SSL_HEADER: "HTTP_X_FORWARDED_PROTO,https"
+ ALLOWED_HOSTS: "localhost,127.0.0.1,django.pavlo-k8s.ddnsfree.com,k8s-django-django-d0a24278e4-938562161.us-east-1.elb.amazonaws.com"

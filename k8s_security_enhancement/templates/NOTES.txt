@@ -1,0 +1,8 @@
+Release: {{ include "django-security.fullname" . }}
+Namespace: {{ .Release.Namespace }}
+
+Access the application:
+  kubectl --context {{ .Values.kubeContext | default "django-eks" }} -n {{ .Release.Namespace }} port-forward service/{{ .Release.Name }} 8080:{{ .Values.service.port }}
+
+Run the connection test:
+  helm test {{ .Release.Name }} --namespace {{ .Release.Namespace }} --kube-context django-eks
