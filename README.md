@@ -1,14 +1,10 @@
 # Kubernetes Security Enhancement
 
-## Scope
-
 This task extended the existing Django Helm deployment with Pod security settings, Pod Security Admission, NetworkPolicy, RBAC, and Helm template tests. Initial checks ran in kind. Deployment and access-control tests then ran on the `django-eks` EKS cluster in the `django` namespace, with a private PostgreSQL RDS database.
-
-The review focused on application manifests, cluster configuration, and the runtime checks described below. It was not a full cluster vulnerability audit.
 
 ## Security assessment and changes
 
-The existing image already used a non-root user. The chart needed explicit security settings and controls to prevent future deployments from weakening that configuration. The changes followed Kubernetes guidance on [Pod Security Standards](https://kubernetes.io/docs/concepts/security/pod-security-standards/) and [least-privilege access](https://kubernetes.io/docs/concepts/security/rbac-good-practices/).
+The existing image already used a non-root user. The chart needed explicit security settings and controls to prevent future deployments from weakening that configuration. 
 
 | Risk | Change and purpose |
 | --- | --- |
@@ -29,7 +25,7 @@ RDS is private and encrypted at rest. Its security group allows PostgreSQL conne
 
 ### Pod Security Admission
 
-The namespace manifest enables `enforce`, `warn`, and `audit` at the `restricted` level, pinned to `v1.35`. This is the policy version used in the tests, including on EKS Kubernetes 1.36. The namespace was bootstrapped with these labels before application installation. It was then adopted by the Helm release, and `templates/ns.yaml` now maintains the labels. The `helm.sh/resource-policy: keep` annotation instructs Helm to preserve the namespace on uninstall. [Pod Security Admission documentation](https://kubernetes.io/docs/concepts/security/pod-security-admission/).
+The namespace manifest enables `enforce`, `warn`, and `audit` at the `restricted` level, pinned to `v1.35`. This is the policy version used in the tests, including on EKS Kubernetes 1.36. The namespace was bootstrapped with these labels before application installation. It was then adopted by the Helm release, and `templates/ns.yaml` now maintains the labels. The `helm.sh/resource-policy: keep` annotation instructs Helm to preserve the namespace on uninstall. 
 
 ### NetworkPolicy
 
@@ -41,7 +37,7 @@ NetworkPolicy enforcement was enabled in the EKS VPC CNI. The tested application
 
 For the Helm connection test, an additional ingress rule permits the test Job's Pods to reach Django on port `8080`. A separate egress policy selects only those test Pods and allows that connection to application Pods in the same namespace.
 
-The database rule permits that port across those subnets, rather than identifying one database by hostname. This avoids depending on a fixed RDS IP address but leaves a broader destination range. The RDS security group provides an additional access restriction. [NetworkPolicy documentation](https://kubernetes.io/docs/concepts/services-networking/network-policies/).
+The database rule permits that port across those subnets, rather than identifying one database by hostname. This avoids depending on a fixed RDS IP address but leaves a broader destination range. The RDS security group provides an additional access restriction. 
 
 ### RBAC
 
@@ -64,7 +60,7 @@ Authorization was tested using impersonation. A real human user's IAM authentica
 | NetworkPolicy on EKS | The allowed probe received HTTP `200` from Django. After its label changed to `access=denied`, the connection was blocked. |
 | Egress on EKS | Django could connect to RDS on port `5432`; its connection to an unrelated probe on port `8080` was blocked. The probe had first been confirmed reachable from another test Pod. |
 
-The network checks used connections between Pods. Port-forwarding was used only to check the application response. Unit tests validate rendered manifests; the [Helm test hook](https://helm.sh/docs/topics/chart_tests/) checks the running application through its Service.
+The network checks used connections between Pods. Port-forwarding was used only to check the application response. Unit tests validate rendered manifests; the Helm test hook checks the running application through its Service.
 
 ## Repository structure
 
@@ -121,9 +117,3 @@ The two test directories have different purposes: `tests/` contains local templa
 The root Helmfile selects the tested EKS values and encrypted secrets. Non-secret configuration stays separate from credentials; the current EKS profile supplies the configuration used in the AWS tests. `infra/django-namespace.yaml` supports initial namespace creation, while the chart manages it after adoption.
 
 The three chart archives match the versions specified in the assignment. They are declared as dependencies in `Chart.yaml` and disabled through `bundledCharts` values. This includes the requested packages without installing extra controllers or duplicating the EKS Metrics Server add-on in the tested environment.
-
-## Limits of the tested setup
-
-The AWS profile runs one application replica and a Single-AZ database. Ingress, persistent static-file storage, and autoscaling are disabled; static files come from the image, and access is through port-forwarding. This is a security lab configuration, not a highly available public deployment.
-
-Container-image vulnerability scanning was not performed. The database connection requires TLS, but `sslmode=require` does not provide the server identity verification offered by `verify-full`.
