@@ -1,129 +1,195 @@
-# Kubernetes Security Enhancement
+# Kubernetes Audit Logging
 
-## Scope
+## Purpose and environment
 
-This task extended the existing Django Helm deployment with Pod security settings, Pod Security Admission, NetworkPolicy, RBAC, and Helm template tests. Initial checks ran in kind. Deployment and access-control tests then ran on the `django-eks` EKS cluster in the `django` namespace, with a private PostgreSQL RDS database.
+This setup records Kubernetes API requests and makes them searchable in Kibana. Audit logs shяow who made a request, which resource they accessed, when it happened, and whether it was allowed. This helps investigate unexpected changes and attempts to access resources outside a user's permissions.
 
-The review focused on application manifests, cluster configuration, and the runtime checks described below. It was not a full cluster vulnerability audit.
+The lab runs on an AWS EC2 `m7i-flex.large` instance with Ubuntu 24.04, 8 GiB RAM, and a 30 GiB encrypted gp3 disk. Kubernetes runs in a single-node kind cluster named `django-audit`.
 
-## Security assessment and changes
+Installed versions: kind `0.31.0`, Kubernetes and kubectl `1.35.0`, Helm `4.3.1`, and Elastic Stack `9.5.5`.
 
-The existing image already used a non-root user. The chart needed explicit security settings and controls to prevent future deployments from weakening that configuration. The changes followed Kubernetes guidance on [Pod Security Standards](https://kubernetes.io/docs/concepts/security/pod-security-standards/) and [least-privilege access](https://kubernetes.io/docs/concepts/security/rbac-good-practices/).
-
-| Risk | Change and purpose |
-| --- | --- |
-| A compromised container gaining unnecessary privileges | Both the Django Deployment and migration Job use `runAsNonRoot: true`, UID/GID `10001`, `privileged: false`, `allowPrivilegeEscalation: false`, and drop all Linux capabilities. These settings limit the privileges available to an attacker. |
-| Unnecessary access to system calls | The Pod security context selects the `RuntimeDefault` seccomp profile, applying the container runtime's syscall restrictions. |
-| Modification of application files | Containers use `readOnlyRootFilesystem: true`. A separate `emptyDir` mounted at `/tmp`, with a `128Mi` size limit, provides temporary writable storage. |
-| Theft of Kubernetes API credentials | A dedicated application ServiceAccount has `automountServiceAccountToken: false`. The application does not need Kubernetes API access and receives no application-specific RBAC permissions. |
-| Future Pods bypassing the security settings | The namespace enforces the Restricted Pod Security Standard. This makes admission checks independent of the Helm templates. |
-| Unrestricted traffic between workloads | A NetworkPolicy selects all Pods in the application namespace and restricts both incoming and outgoing connections. |
-| Excessive user permissions | A namespace-scoped viewer Role and RoleBinding provide read access without granting access to Secrets or permission to modify workloads. |
-| Exposure of credentials in Git | Secret values are stored in a SOPS-encrypted file. The private age key stays outside the repository. Kubernetes Secret base64 encoding alone does not provide this protection. |
-
-Existing CPU and memory requests and limits were retained. The reviewed EKS configuration also restricts public API access to the administrator's IP address, enables private API access and API/audit/authenticator logging, and uses private worker nodes with encrypted volumes and SSH disabled.
-
-RDS is private and encrypted at rest. Its security group allows PostgreSQL connections from the cluster security group. Django connects with `DB_SSLMODE=require` and uses the separate `django_app` database role. That role has no superuser, database-creation, or role-creation privileges.
-
-## Implementation details
-
-### Pod Security Admission
-
-The namespace manifest enables `enforce`, `warn`, and `audit` at the `restricted` level, pinned to `v1.35`. This is the policy version used in the tests, including on EKS Kubernetes 1.36. The namespace was bootstrapped with these labels before application installation. It was then adopted by the Helm release, and `templates/ns.yaml` now maintains the labels. The `helm.sh/resource-policy: keep` annotation instructs Helm to preserve the namespace on uninstall. [Pod Security Admission documentation](https://kubernetes.io/docs/concepts/security/pod-security-admission/).
-
-### NetworkPolicy
-
-NetworkPolicy enforcement was enabled in the EKS VPC CNI. The tested application policy allows:
-
-- Incoming TCP traffic on port `8080` from Pods labelled `access=allowed` in the `security-tests` namespace.
-- Outgoing DNS queries to CoreDNS on UDP/TCP port `53`.
-- Outgoing PostgreSQL connections on TCP port `5432` to the two private subnet CIDRs containing RDS: `10.20.64.0/19` and `10.20.96.0/19`.
-
-For the Helm connection test, an additional ingress rule permits the test Job's Pods to reach Django on port `8080`. A separate egress policy selects only those test Pods and allows that connection to application Pods in the same namespace.
-
-The database rule permits that port across those subnets, rather than identifying one database by hostname. This avoids depending on a fixed RDS IP address but leaves a broader destination range. The RDS security group provides an additional access restriction. [NetworkPolicy documentation](https://kubernetes.io/docs/concepts/services-networking/network-policies/).
-
-### RBAC
-
-The `django-viewer` Role grants `get`, `list`, and `watch` for Pods, Services, Events, Deployments, ReplicaSets, and Jobs, plus `get` for Pod logs. A RoleBinding assigns it to the `django-viewers` group in the `django` namespace.
-
-Authorization was tested using impersonation. A real human user's IAM authentication and mapping to this group were not configured as part of these tests.
-
-## Verification
-
-| Check | Result |
-| --- | --- |
-| Helm chart lint | Passed with no chart errors. |
-| Helm template unit tests | All 6 tests passed. They cover non-root execution, seccomp, privilege restrictions, the read-only root filesystem, ServiceAccount selection, and temporary storage in the Deployment and migration Job. |
-| Runtime hardening in kind | UID/GID `10001`, zero effective capabilities, `NoNewPrivs: 1`, and `Seccomp: 2`. The root filesystem was read-only, `/tmp` was writable, and no ServiceAccount token was mounted. |
-| EKS application deployment | Helm installation completed successfully, including the migration hook. The Django Pod was `1/1 Running`. |
-| Final chart upgrade and connection test | The upgrade completed with status `deployed`, revision `2`. Running `helm test django` completed the `django-connection-test` Job with phase `Succeeded`. The Job requests `/accounts/login/` through the Service and requires HTTP `200`. |
-| Application response | Through port-forwarding, `/` returned HTTP `302`, followed by HTTP `200` at `/accounts/login/`. |
-| PSA on EKS | A server-side dry run of a Pod missing the required security settings was rejected with `restricted:v1.35` violations. |
-| RBAC on EKS | Listing Pods returned `yes`; deleting Pods and reading Secrets returned `no`. |
-| NetworkPolicy on EKS | The allowed probe received HTTP `200` from Django. After its label changed to `access=denied`, the connection was blocked. |
-| Egress on EKS | Django could connect to RDS on port `5432`; its connection to an unrelated probe on port `8080` was blocked. The probe had first been confirmed reachable from another test Pod. |
-
-The network checks used connections between Pods. Port-forwarding was used only to check the application response. Unit tests validate rendered manifests; the [Helm test hook](https://helm.sh/docs/topics/chart_tests/) checks the running application through its Service.
-
-## Repository structure
-
-The main files for this task are:
+The collection path is:
 
 ```text
-k8s_security_enhancement/
-├── charts/
-│   ├── cert-manager-v1.13.1.tgz
-│   ├── ingress-nginx-4.8.1.tgz
-│   └── metrics-server-3.11.0.tgz
-├── Chart.yaml
-├── .helmignore
-├── values.yaml
-├── templates/
-│   ├── configmap.yaml
-│   ├── deployment.yaml
-│   ├── _helpers.tpl
-│   ├── hpa.yaml
-│   ├── ingress.yaml
-│   ├── issuer.yaml
-│   ├── migrations.yaml
-│   ├── networkpolicy.yaml
-│   ├── NOTES.txt
-│   ├── ns.yaml
-│   ├── pv.yaml
-│   ├── pvc.yaml
-│   ├── rbac.yaml
-│   ├── secret.yaml
-│   ├── serviceaccount.yaml
-│   ├── service.yaml
-│   ├── storage-class.yaml
-│   └── tests/
-│       └── test-connection.yaml
-└── tests/
-    └── pod_security_test.yaml
-helmfile.yaml                  # Application release and selected values
-helm_secrets/
-├── .sops.yaml
-├── django_config.yaml
-└── django_secret.yaml         # Encrypted secret values
-infra/
-├── eks-cluster.yaml
-├── django-namespace.yaml
-├── eks-values.yaml
-├── local-values.yaml
-└── network-test.yaml
+Kubernetes API server → audit files → Filebeat → Logstash → Elasticsearch → Kibana
 ```
 
-I consider this the best fit for this task because the application resources and security controls are reviewed together in one chart, while infrastructure setup and environment-specific values remain separate. `_helpers.tpl` provides a reusable naming helper, and `NOTES.txt` displays access and test commands after deployment.
+## Files
 
-The two test directories have different purposes: `tests/` contains local template unit tests, and `templates/tests/` contains the Job run by `helm test`. The additional migration, RBAC, and NetworkPolicy files implement this application's requirements alongside the files listed in the assignment.
+```text
+k8s_audit_logging/
+├── README.md
+├── values/
+│   ├── elasticsearch.yaml
+│   ├── kibana.yaml
+│   ├── logstash-config.yaml
+│   └── filebeat.yaml
+├── infra/
+│   ├── audit-policy.yaml
+│   └── kind-config.yaml
+├── chart/
+│   ├── Chart.yaml
+│   ├── values.yaml
+│   └── templates/resources.yaml
+└── images/
+    └── audit-denied-secrets.png
+```
 
-The root Helmfile selects the tested EKS values and encrypted secrets. Non-secret configuration stays separate from credentials; the current EKS profile supplies the configuration used in the AWS tests. `infra/django-namespace.yaml` supports initial namespace creation, while the chart manages it after adoption.
+The four required values files configure the components of one small Helm chart. The chart and infrastructure files are included so the deployment can be reproduced. The older standalone Elastic Helm chart repository is [archived](https://github.com/elastic/helm-charts); this lab uses official container images directly.
 
-The three chart archives match the versions specified in the assignment. They are declared as dependencies in `Chart.yaml` and disabled through `bundledCharts` values. This includes the requested packages without installing extra controllers or duplicating the EKS Metrics Server add-on in the tested environment.
+## Audit configuration
 
-## Limits of the tested setup
+`infra/audit-policy.yaml` contains a catch-all rule at the `Metadata` level. It covers resource and non-resource API requests, including denied requests, without recording request or response bodies. This provides the information needed for this exercise without copying Secret contents into the logs. [Kubernetes auditing documentation](https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/).
 
-The AWS profile runs one application replica and a Single-AZ database. Ingress, persistent static-file storage, and autoscaling are disabled; static files come from the image, and access is through port-forwarding. This is a security lab configuration, not a highly available public deployment.
+`infra/kind-config.yaml` mounts the policy into the API server and enables the file backend at `/var/log/kubernetes/audit/audit.log`. Files rotate at 10 MiB, with up to two backups and a maximum backup age of one day. Size-based rotation can remove older records sooner.
 
-Container-image vulnerability scanning was not performed. The database connection requires TLS, but `sslmode=require` does not provide the server identity verification offered by `verify-full`.
+No audit stages are omitted. A request can therefore produce both `RequestReceived` and `ResponseComplete` events with the same `auditID`. Event counts are not the same as request counts.
+
+### Create the cluster
+
+On the Mac, from the repository root, set the server address and copy the files:
+
+```bash
+django_audit_public_ip="<EC2_PUBLIC_IP>"
+
+scp -i "$HOME/.ssh/kubernetes-audit" \
+  -r ./k8s_audit_logging \
+  ubuntu@"$django_audit_public_ip":/home/ubuntu/
+```
+
+The server needs Docker, kind, kubectl, and Helm installed. Set the Elasticsearch kernel prerequisite on Ubuntu:
+
+```bash
+echo 'vm.max_map_count=1048576' \
+  | sudo tee /etc/sysctl.d/99-elasticsearch.conf
+sudo sysctl -p /etc/sysctl.d/99-elasticsearch.conf
+```
+
+Run on Ubuntu:
+
+```bash
+cd /home/ubuntu/k8s_audit_logging
+
+kind create cluster \
+  --name django-audit \
+  --image kindest/node:v1.35.0@sha256:452d707d4862f52530247495d180205e029056831160e22870e37e3f6c1ac31f \
+  --config infra/kind-config.yaml \
+  --wait 180s
+
+kubectl --context kind-django-audit get namespaces
+docker exec django-audit-control-plane \
+  tail -n 2 /var/log/kubernetes/audit/audit.log
+```
+
+The test produced matching `RequestReceived` and `ResponseComplete` records for listing namespaces, with response code `200`.
+
+## Log collection and analysis stack
+
+Filebeat runs on the control-plane node and reads `audit*.log`, including rotated files. It mounts only the audit directory for reading and keeps its read position in `/var/lib/filebeat-audit` on the node. It runs as root to read the audit files, with privilege escalation disabled, all capabilities dropped, a read-only root filesystem, and no ServiceAccount token.
+
+Logstash receives Filebeat events on port `5044`, parses the JSON into the `audit` field, and sets `@timestamp` from `audit.stageTimestamp`. It writes to daily `k8s-audit-*` indices. Elasticsearch uses an 8 GiB PVC; Kibana provides the search interface. Each component runs one replica with CPU and memory limits.
+
+### Deploy
+
+On Ubuntu, from `/home/ubuntu/k8s_audit_logging`, first install Elasticsearch and Kibana:
+
+```bash
+helm upgrade --install audit-logging ./chart \
+  --kube-context kind-django-audit \
+  --namespace audit-logging --create-namespace \
+  -f values/elasticsearch.yaml -f values/kibana.yaml \
+  --wait --timeout 10m
+```
+
+Create an index template with one primary shard and no replicas for this single-node lab:
+
+```bash
+kubectl --context kind-django-audit -n audit-logging \
+  exec deployment/elasticsearch -- \
+  curl -fsS -X PUT http://localhost:9200/_index_template/k8s-audit \
+  -H 'Content-Type: application/json' \
+  -d '{"index_patterns":["k8s-audit-*"],"template":{"settings":{"number_of_shards":1,"number_of_replicas":0}}}'
+```
+
+Then apply all four values files together:
+
+```bash
+helm lint ./chart \
+  -f values/elasticsearch.yaml -f values/kibana.yaml \
+  -f values/logstash-config.yaml -f values/filebeat.yaml
+
+helm upgrade --install audit-logging ./chart \
+  --kube-context kind-django-audit --namespace audit-logging \
+  -f values/elasticsearch.yaml -f values/kibana.yaml \
+  -f values/logstash-config.yaml -f values/filebeat.yaml \
+  --wait --timeout 10m
+
+kubectl --context kind-django-audit -n audit-logging get pods,pvc
+kubectl --context kind-django-audit -n audit-logging \
+  exec deployment/elasticsearch -- \
+  curl -fsS 'http://localhost:9200/_cat/indices/k8s-audit-*?v'
+```
+
+Lint passed, all four Pods reached `1/1 Running`, and the PVC was `Bound`. The first indexing check showed the green index `k8s-audit-2026.10.26` containing 8,253 documents.
+
+### Open Kibana
+
+On the Mac, keep this command running:
+
+```bash
+ssh -i "$HOME/.ssh/kubernetes-audit" \
+  -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
+  -o ExitOnForwardFailure=yes \
+  -L 127.0.0.1:5601:127.0.0.1:15601 \
+  ubuntu@"$django_audit_public_ip" \
+  'kubectl --context kind-django-audit -n audit-logging port-forward --address 127.0.0.1 service/kibana 15601:5601'
+```
+
+Open `http://localhost:5601`. Create the `Kubernetes audit` Data View with index pattern `k8s-audit-*` and timestamp field `@timestamp`. In Discover, select that Data View and use KQL to filter events. [Data View documentation](https://www.elastic.co/docs/explore-analyze/find-and-organize/data-views/create-data-view).
+
+## Analysis exercise: repeated attempts to read a Secret
+
+The hypothetical scenario is an account with permission to view Pods attempting to read a Secret. The exercise uses impersonation to simulate that account; it is not evidence of an actual compromised account.
+
+Run on Ubuntu:
+
+```bash
+kubectl --context kind-django-audit create namespace audit-demo
+kubectl --context kind-django-audit -n audit-demo \
+  create secret generic audit-demo-secret --from-literal=token=example-value
+kubectl --context kind-django-audit -n audit-demo \
+  create role audit-viewer --verb=get,list,watch --resource=pods
+kubectl --context kind-django-audit -n audit-demo \
+  create rolebinding audit-viewer --role=audit-viewer --user=audit-viewer
+kubectl --context kind-django-audit -n audit-demo \
+  get pods --as=audit-viewer
+
+for django_audit_attempt in 1 2 3; do
+  kubectl --context kind-django-audit -n audit-demo \
+    get secret audit-demo-secret --as=audit-viewer
+done
+```
+
+The Pod query is permitted. The three Secret requests are expected to return `Forbidden`. In Discover, use a time range covering the test and this query:
+
+```text
+audit.stage: "ResponseComplete" AND
+audit.impersonatedUser.username: "audit-viewer" AND
+audit.objectRef.namespace: "audit-demo" AND
+audit.objectRef.resource: "secrets" AND
+audit.responseStatus.code: 403
+```
+
+Discover returned three matching events on 26 October 2026:
+
+![Three matching audit events in Kibana Discover](images/audit-denied-secrets.png)
+
+The analysis checks the effective identity, target resource, verb, response code, and timestamps. `audit.user.username` identifies the authenticated administrator who ran the simulation; `audit.impersonatedUser.username` identifies `audit-viewer`. Filtering on `ResponseComplete` avoids counting the initial request stage as another attempt.
+
+The repeated denied requests are a reason to investigate activity outside the account's assigned permissions. The `403` responses show that these requests were blocked; they do not show a successful Secret read or prove malicious intent. In a real investigation, the next checks would be the source IP, user agent, surrounding requests, and whether this activity was expected.
+
+## Lab limits
+
+Elasticsearch authentication is disabled in this lab. Services use internal `ClusterIP` addresses, and browser access uses an SSH tunnel; the EC2 security group permits SSH from the administrator's IP. A production deployment would need authenticated access and TLS between components.
+
+The index PVC and Filebeat registry survive Pod replacement but remain local to the kind node. They do not provide an off-node backup. Index retention, automated alerts, and durable forwarding queues were not configured. Local audit-file rotation and a single-node stack are sufficient for this exercise, not for a production audit archive.
