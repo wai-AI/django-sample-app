@@ -1,18 +1,10 @@
 # Kubernetes Audit Logging
 
-## Purpose and environment
-
 This setup records Kubernetes API requests and makes them searchable in Kibana. Audit logs shяow who made a request, which resource they accessed, when it happened, and whether it was allowed. This helps investigate unexpected changes and attempts to access resources outside a user's permissions.
 
 The lab runs on an AWS EC2 `m7i-flex.large` instance with Ubuntu 24.04, 8 GiB RAM, and a 30 GiB encrypted gp3 disk. Kubernetes runs in a single-node kind cluster named `django-audit`.
 
 Installed versions: kind `0.31.0`, Kubernetes and kubectl `1.35.0`, Helm `4.3.1`, and Elastic Stack `9.5.5`.
-
-The collection path is:
-
-```text
-Kubernetes API server → audit files → Filebeat → Logstash → Elasticsearch → Kibana
-```
 
 ## Files
 
@@ -35,11 +27,11 @@ k8s_audit_logging/
     └── audit-denied-secrets.png
 ```
 
-The four required values files configure the components of one small Helm chart. The chart and infrastructure files are included so the deployment can be reproduced. The older standalone Elastic Helm chart repository is [archived](https://github.com/elastic/helm-charts); this lab uses official container images directly.
+The four required values files configure the components of one small Helm chart. The chart and infrastructure files are included so the deployment can be reproduced. The older standalone Elastic Helm chart repository is archived; so this lab uses official container images directly.
 
 ## Audit configuration
 
-`infra/audit-policy.yaml` contains a catch-all rule at the `Metadata` level. It covers resource and non-resource API requests, including denied requests, without recording request or response bodies. This provides the information needed for this exercise without copying Secret contents into the logs. [Kubernetes auditing documentation](https://kubernetes.io/docs/tasks/debug/debug-cluster/audit/).
+`infra/audit-policy.yaml` contains a catch-all rule at the `Metadata` level. It covers resource and non-resource API requests, including denied requests, without recording request or response bodies. This provides the information needed for this exercise without copying Secret contents into the logs. 
 
 `infra/kind-config.yaml` mounts the policy into the API server and enables the file backend at `/var/log/kubernetes/audit/audit.log`. Files rotate at 10 MiB, with up to two backups and a maximum backup age of one day. Size-based rotation can remove older records sooner.
 
@@ -145,7 +137,7 @@ ssh -i "$HOME/.ssh/kubernetes-audit" \
   'kubectl --context kind-django-audit -n audit-logging port-forward --address 127.0.0.1 service/kibana 15601:5601'
 ```
 
-Open `http://localhost:5601`. Create the `Kubernetes audit` Data View with index pattern `k8s-audit-*` and timestamp field `@timestamp`. In Discover, select that Data View and use KQL to filter events. [Data View documentation](https://www.elastic.co/docs/explore-analyze/find-and-organize/data-views/create-data-view).
+Open `http://localhost:5601`. Create the `Kubernetes audit` Data View with index pattern `k8s-audit-*` and timestamp field `@timestamp`. In Discover, select that Data View and use KQL to filter events. 
 
 ## Analysis exercise: repeated attempts to read a Secret
 
@@ -182,14 +174,8 @@ audit.responseStatus.code: 403
 
 Discover returned three matching events on 26 October 2026:
 
-![Three matching audit events in Kibana Discover](images/audit-denied-secrets.png)
+<img width="2210" height="1214" alt="image" src="https://github.com/user-attachments/assets/10a3076e-92d7-47dd-97b7-c967370ef567" />
 
 The analysis checks the effective identity, target resource, verb, response code, and timestamps. `audit.user.username` identifies the authenticated administrator who ran the simulation; `audit.impersonatedUser.username` identifies `audit-viewer`. Filtering on `ResponseComplete` avoids counting the initial request stage as another attempt.
 
 The repeated denied requests are a reason to investigate activity outside the account's assigned permissions. The `403` responses show that these requests were blocked; they do not show a successful Secret read or prove malicious intent. In a real investigation, the next checks would be the source IP, user agent, surrounding requests, and whether this activity was expected.
-
-## Lab limits
-
-Elasticsearch authentication is disabled in this lab. Services use internal `ClusterIP` addresses, and browser access uses an SSH tunnel; the EC2 security group permits SSH from the administrator's IP. A production deployment would need authenticated access and TLS between components.
-
-The index PVC and Filebeat registry survive Pod replacement but remain local to the kind node. They do not provide an off-node backup. Index retention, automated alerts, and durable forwarding queues were not configured. Local audit-file rotation and a single-node stack are sufficient for this exercise, not for a production audit archive.
