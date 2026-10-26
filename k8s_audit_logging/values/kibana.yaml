@@ -1,0 +1,47 @@
+deployments:
+  kibana:
+    automountServiceAccountToken: false
+    securityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+      seccompProfile:
+        type: RuntimeDefault
+    containers:
+      - name: kibana
+        image: docker.elastic.co/kibana/kibana:9.5.5
+        env:
+          - name: ELASTICSEARCH_HOSTS
+            value: '["http://elasticsearch:9200"]'
+          - name: SERVER_HOST
+            value: "0.0.0.0"
+          - name: NODE_OPTIONS
+            value: "--max-old-space-size=768"
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+        ports:
+          - containerPort: 5601
+        resources:
+          requests:
+            cpu: 100m
+            memory: 512Mi
+          limits:
+            cpu: "1"
+            memory: 1536Mi
+        startupProbe:
+          httpGet:
+            path: /api/status
+            port: 5601
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 90
+        readinessProbe:
+          httpGet:
+            path: /api/status
+            port: 5601
+          periodSeconds: 10
+          timeoutSeconds: 3
+
+services:
+  kibana: 5601

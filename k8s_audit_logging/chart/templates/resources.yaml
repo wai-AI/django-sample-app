@@ -1,0 +1,53 @@
+{{- range $name, $podSpec := .Values.deployments }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: {{ $name }}
+  template:
+    metadata:
+      labels:
+        app: {{ $name }}
+    spec:
+      {{- toYaml $podSpec | nindent 6 }}
+{{- end }}
+{{- range $name, $port := .Values.services }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}
+spec:
+  type: ClusterIP
+  selector:
+    app: {{ $name }}
+  ports:
+    - name: tcp
+      port: {{ $port }}
+      targetPort: {{ $port }}
+{{- end }}
+{{- range $name, $data := .Values.configMaps }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}
+data:
+  {{- toYaml $data | nindent 2 }}
+{{- end }}
+{{- range $name, $spec := .Values.pvcs }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $name }}
+spec:
+  {{- toYaml $spec | nindent 2 }}
+{{- end }}

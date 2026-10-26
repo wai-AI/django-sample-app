@@ -1,0 +1,85 @@
+deployments:
+  logstash:
+    automountServiceAccountToken: false
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      seccompProfile:
+        type: RuntimeDefault
+    containers:
+      - name: logstash
+        image: docker.elastic.co/logstash/logstash:9.5.5
+        env:
+          - name: LS_JAVA_OPTS
+            value: "-Xms256m -Xmx256m -XX:MaxDirectMemorySize=128m"
+          - name: PIPELINE_WORKERS
+            value: "1"
+          - name: PIPELINE_BATCH_SIZE
+            value: "50"
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+        ports:
+          - containerPort: 5044
+        resources:
+          requests:
+            cpu: 100m
+            memory: 512Mi
+          limits:
+            cpu: "1"
+            memory: 1Gi
+        startupProbe:
+          tcpSocket:
+            port: 5044
+          periodSeconds: 5
+          failureThreshold: 60
+        readinessProbe:
+          tcpSocket:
+            port: 5044
+          periodSeconds: 10
+        volumeMounts:
+          - name: pipeline
+            mountPath: /usr/share/logstash/pipeline
+            readOnly: true
+    volumes:
+      - name: pipeline
+        configMap:
+          name: logstash-pipeline
+
+services:
+  logstash: 5044
+
+configMaps:
+  logstash-pipeline:
+    logstash.conf: |
+      input {
+        beats {
+          port => 5044
+        }
+      }
+
+      filter {
+        json {
+          source => "message"
+          target => "[audit]"
+        }
+
+        if [audit][stageTimestamp] {
+          date {
+            match => ["[audit][stageTimestamp]", "ISO8601"]
+            target => "@timestamp"
+          }
+        }
+      }
+
+      output {
+        elasticsearch {
+          hosts => ["http://elasticsearch:9200"]
+          index => "k8s-audit-%{+yyyy.MM.dd}"
+          ilm_enabled => false
+          data_stream => false
+          manage_template => false
+        }
+      }

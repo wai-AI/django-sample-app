@@ -1,0 +1,6 @@
+apiVersion: v2
+name: kubernetes-audit-logging
+description: Kubernetes audit log collection and analysis
+type: application
+version: 0.1.0
+appVersion: "9.5.5"

@@ -1,0 +1,4 @@
+deployments: {}
+services: {}
+configMaps: {}
+pvcs: {}

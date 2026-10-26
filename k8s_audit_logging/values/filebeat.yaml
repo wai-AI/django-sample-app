@@ -1,0 +1,73 @@
+deployments:
+  filebeat:
+    automountServiceAccountToken: false
+    nodeSelector:
+      kubernetes.io/hostname: django-audit-control-plane
+    securityContext:
+      runAsUser: 0
+      seccompProfile:
+        type: RuntimeDefault
+    containers:
+      - name: filebeat
+        image: docker.elastic.co/beats/filebeat:9.5.5
+        command:
+          - /usr/share/filebeat/filebeat
+        args:
+          - -e
+          - -c
+          - /usr/share/filebeat/filebeat.yml
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+        volumeMounts:
+          - name: config
+            mountPath: /usr/share/filebeat/filebeat.yml
+            subPath: filebeat.yml
+            readOnly: true
+          - name: audit-logs
+            mountPath: /var/log/kubernetes/audit
+            readOnly: true
+          - name: data
+            mountPath: /usr/share/filebeat/data
+    volumes:
+      - name: config
+        configMap:
+          name: filebeat-config
+      - name: audit-logs
+        hostPath:
+          path: /var/log/kubernetes/audit
+          type: Directory
+      - name: data
+        hostPath:
+          path: /var/lib/filebeat-audit
+          type: DirectoryOrCreate
+
+configMaps:
+  filebeat-config:
+    filebeat.yml: |
+      filebeat.inputs:
+        - type: filestream
+          id: kubernetes-audit
+          paths:
+            - /var/log/kubernetes/audit/audit*.log
+
+      queue.mem:
+        events: 512
+        flush.min_events: 128
+        flush.timeout: 1s
+
+      output.logstash:
+        hosts: ["logstash:5044"]
+        bulk_max_size: 128
+
+      setup.template.enabled: false
+      setup.ilm.enabled: false
